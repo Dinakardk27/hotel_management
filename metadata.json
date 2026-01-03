@@ -1,0 +1,7 @@
+{
+  "name": "BistroFlow - Smart Restaurant Manager",
+  "description": "A complete restaurant management suite featuring a customer-facing ordering app with an AI-powered waiter (Gemini), and a robust admin dashboard for tracking orders, revenue, and menu management.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
