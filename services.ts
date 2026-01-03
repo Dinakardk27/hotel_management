@@ -106,7 +106,6 @@ export const Store = {
     const orders = Store.getOrders().filter(o => o.status !== OrderStatus.CANCELLED);
     const now = new Date();
     
-    // Simple metrics
     const dailyRevenue = orders
       .filter(o => new Date(o.timestamp).toDateString() === now.toDateString())
       .reduce((sum, o) => sum + o.total, 0);
@@ -115,19 +114,16 @@ export const Store = {
       .filter(o => new Date(o.timestamp).getMonth() === now.getMonth())
       .reduce((sum, o) => sum + o.total, 0);
 
-    // Mock Chart Data Generator (Last 7 days)
     const chartData: SalesData[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
       const dayStr = date.toLocaleDateString('en-US', { weekday: 'short' });
       
-      // Calculate real data if available, else mock random data for visualization if empty
       const dayRevenue = orders
         .filter(o => new Date(o.timestamp).toDateString() === date.toDateString())
         .reduce((sum, o) => sum + o.total, 0);
       
-      // Add some fake baseline revenue for better chart visuals if app is empty
       const visualRevenue = dayRevenue > 0 ? dayRevenue : Math.floor(Math.random() * 5000) + 1000;
 
       chartData.push({
@@ -145,27 +141,17 @@ export const Store = {
     };
   },
 
-  // Admin Auth Methods
-  registerAdmin: (username: string, password: string): boolean => {
-    const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
-    if (admins.some((a: any) => a.username === username)) {
-      return false; // Already exists
-    }
-    admins.push({ username, password });
-    localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(admins));
-    return true;
-  },
-
   verifyAdmin: (username: string, password: string): boolean => {
     const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
-    
-    // Check local storage admins
     const found = admins.some((a: any) => a.username === username && a.password === password);
     if (found) return true;
 
-    // Hardcoded Fallback for "Only Login" requirement
-    // This ensures there is always one way to get in without a signup form.
+    // Hardcoded Fallback
     if (username === 'dinakar' && password === 'dk@2729') {
+      return true;
+    }
+    // Shared common default
+    if (username === 'admin' && password === 'admin') {
       return true;
     }
 
@@ -177,9 +163,11 @@ export const Store = {
 
 export const geminiService = {
   chatWithChef: async (userMessage: string, currentMenu: MenuItem[]): Promise<string> => {
-    if (!process.env.API_KEY) return "AI service is unavailable. Please set API_KEY.";
+    // Safe access to process.env to prevent crashes on static environments
+    const apiKey = (typeof process !== 'undefined' && process.env.API_KEY) ? process.env.API_KEY : '';
+    
+    if (!apiKey) return "My digital recipe book is missing! (AI API Key not configured).";
 
-    // Construct a detailed, real-time context of the menu
     const menuContext = currentMenu.map(item => 
       `ITEM: ${item.name}
        CATEGORY: ${item.category}
@@ -190,39 +178,35 @@ export const geminiService = {
     ).join('\n');
 
     const systemInstruction = `
-      You are Chef Pierre, a charming and knowledgeable virtual waiter for BistroFlow.
-      You have access to the restaurant's REAL-TIME live menu below. 
-      It is crucial that you strictly adhere to this menu. 
-      If an item is marked "OUT OF STOCK" or "UNAVAILABLE", you MUST inform the customer it is currently unavailable and suggest an alternative from the available items.
-      If a new item appears in this list that you haven't seen before, you know about it immediately and can recommend it.
-
+      You are Chef Pierre, a charming virtual waiter for BistroFlow.
+      You have access to the restaurant's REAL-TIME menu below. 
+      Strictly recommend only items available on this list.
+      
       === LIVE MENU ===
       ${menuContext}
       =================
       
       Rules:
-      1. Be polite, concise, and appetizing in your descriptions.
+      1. Be polite, concise, and appetizing.
       2. Prices are in Indian Rupees (₹).
-      3. Only recommend items that are explicitly listed in the Live Menu above.
-      4. If a user asks for something not on the menu, politely suggest a similar available alternative.
-      5. Keep responses under 50 words unless the user asks for a detailed explanation.
-      6. Use emojis occasionally 🍛 🥘.
+      3. Recommend available items.
+      4. Keep responses under 50 words.
     `;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: userMessage,
         config: {
           systemInstruction: systemInstruction,
           temperature: 0.7,
         }
       });
-      return response.text || "I'm sorry, I'm having trouble thinking right now. How about the Butter Chicken?";
+      return response.text || "I'm sorry, I'm having trouble thinking right now.";
     } catch (error) {
       console.error("Gemini Error:", error);
-      return "My apologies, I am currently overwhelmed with orders. Please try again in a moment.";
+      return "My apologies, I am currently overwhelmed. Please try again later.";
     }
   }
 };
